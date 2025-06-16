@@ -214,6 +214,37 @@ app.post("/api/login", async (req, res) => {
     res.status(500).json({ success: false, message: "Error en el servidor" });
   }
 });
+app.get("/api/negocios/:idUsuario", async (req, res) => {
+  const { idUsuario } = req.params;
+
+  try {
+    const [rows] = await database.query(
+      `SELECT 
+         n.ID_NEGOCIOS, 
+         n.NombreNegocio, 
+         n.Descripcion, 
+         c.Nombre AS Ciudad,       -- ← Trae el nombre de la ciudad
+         n.Direccion, 
+         n.Horario, 
+         n.NumTelefono AS Telefono, 
+         n.Imagen
+       FROM negocios n
+       JOIN ciudad c ON n.ID_CIUDAD = c.ID_CIUDAD  -- ← Relación entre negocio y ciudad
+       WHERE n.ID_USUARIOS = ?`,
+      [idUsuario]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ mensaje: "No se encontraron negocios para este usuario" });
+    }
+
+    res.json(rows);
+  } catch (error) {
+    console.error("❌ Error al obtener los negocios:", error);
+    res.status(500).json({ error: "Error al obtener los negocios" });
+  }
+});
+
 
 // ✅ Iniciar el servidor
 app.listen(4000, () => {
