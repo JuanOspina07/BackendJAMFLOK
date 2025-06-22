@@ -2,21 +2,44 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const database = require("./database");
-const bcrypt = require("bcryptjs"); // ✅ Se usa bcryptjs para evitar problemas
-
+const bcrypt = require("bcryptjs");
 const app = express();
+const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
 app.set("port", 4000);
+const jwt = require('jsonwebtoken');
 
 // ✅ Middleware
 app.use(
   cors({
     origin: "http://localhost:5173",
     methods: ["GET", "POST","PUT","DELETE"],
-    allowedHeaders: ["Content-Type"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 app.use(morgan("dev"));
 app.use(express.json());
+
+// Clave secreta para JWT (en producción, usa variable de entorno)
+const JWT_SECRET = "your_jwt_secret_key";
+
+// Middleware para verificar el token JWT
+const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ success: false, message: "Token no proporcionado" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    console.error("Error al verificar token:", error);
+    res.status(401).json({ success: false, message: "Token inválido" });
+  }
+};
 
 // ✅ Ruta para obtener países
 app.get("/api/paises", async (req, res) => {
@@ -154,7 +177,7 @@ app.post("/api/registro", async (req, res) => {
     );
     console.log("✅ Usuario insertado con ID:", resultUser.insertId);
 
-    // 🔹 Insertar Perfil de Usuario (¡aquí estaba el error!)
+    // 🔹 Insertar Perfil de Usuario
     console.log("📌 Insertando Perfil de Usuario...");
     await connection.execute(
       `INSERT INTO PerfilUsuario (
@@ -163,9 +186,9 @@ app.post("/api/registro", async (req, res) => {
         Edad, FechaNacimiento, NumTelefono
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        resultUser.insertId,  // ID_USUARIOS
-        idCiudad,             // ✅ ID_CIUDAD — correcto aquí
-        resultDoc.insertId,   // ✅ ID_DOCUMENTO — antes estaba mal ubicado
+        resultUser.insertId,
+        idCiudad,
+        resultDoc.insertId,
         primerNombre,
         segundoNombre,
         primerApellido,
@@ -193,7 +216,7 @@ app.post("/api/registro", async (req, res) => {
   }
 });
 
-//Login
+// Login
 app.post("/api/login", async (req, res) => {
   const { nombreUsuario, contraseña } = req.body;
 
@@ -219,33 +242,41 @@ app.post("/api/login", async (req, res) => {
       return res.status(401).json({ success: false, message: "Contraseña incorrecta" });
     }
 
-   res.json({
-  success: true,
-  message: "Inicio de sesión exitoso",
-  user: {
-    idUsuario: user.ID_USUARIOS,
-    idRol: user.ID_ROL,
-    nombre: user.PrimerNombre + (user.SegundoNombre ? " " + user.SegundoNombre : ""),
-    apellido: user.PrimerApellido + " " + user.SegundoApellido,
-  },
-});
+    // Generar token JWT sin expiración
+    const token = jwt.sign(
+      { idUsuario: user.ID_USUARIOS, idRol: user.ID_ROL },
+      JWT_SECRET
+    );
+
+    res.json({
+      success: true,
+      message: "Inicio de sesión exitoso",
+      token,
+      user: {
+        idUsuario: user.ID_USUARIOS,
+        idRol: user.ID_ROL,
+        nombre: user.PrimerNombre + (user.SegundoNombre ? " " + user.SegundoNombre : ""),
+        apellido: user.PrimerApellido + " " + user.SegundoApellido,
+      },
+    });
   } catch (error) {
     console.error("Error en el login:", error);
     res.status(500).json({ success: false, message: "Error en el servidor" });
   }
 });
-const crypto = require('crypto');
 
+const crypto = require('crypto');
 const nodemailer = require("nodemailer");
 
-// Configuración del transporte SMTP (ejemplo con Gmail)
+// Configuración del transporte SMTP
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: "soportesavora@gmail.com",
-    pass: "rzegtjimcbcfdcvz", // No uses la contraseña normal, usa una de aplicación
+    pass: "rzegtjimcbcfdcvz",
   },
 });
+
 app.post("/api/recuperar", async (req, res) => {
   const { correo } = req.body;
 
@@ -269,16 +300,15 @@ app.post("/api/recuperar", async (req, res) => {
       });
     }
     const token = crypto.randomBytes(32).toString("hex");
-    const expiration = Date.now() + 3600000; // 1 hora de expiración
+    const expiration = Date.now() + 3600000;
   
     await database.execute(
       "UPDATE Usuarios SET TokenRecuperacion = ?, TokenExpiracion = ? WHERE CorreoElectronico = ?",
       [token, expiration, correo]
     );
 
-    const link = `http://localhost:5173/restablecer/${token}`; // Ajusta a tu dominio real en producción
+    const link = `http://localhost:5173/restablecer/${token}`;
 
-    // Enviar el correo
     await transporter.sendMail({
       from: '"Soporte Jamflok" <soportesavora@gmail.com>',
       to: correo,
@@ -287,7 +317,7 @@ app.post("/api/recuperar", async (req, res) => {
         <div style="font-family: 'Segoe UI', Tahoma, sans-serif; background: linear-gradient(135deg, #fefefe, #f5f5f5); padding: 40px;">
           <div style="max-width: 600px; margin: auto; background: #fff; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); overflow: hidden;">
             <div style="background-color: #d4af37; padding: 20px; text-align: center;">
-              <img src="https://i.ibb.co/7tGvFHxH/q.png"  alt="Savora Logo" style="height: 60px;" />
+              <img src="https://i.ibb.co/7tGvFHxH/q.png" alt="Savora Logo" style="height: 60px;" />
             </div>
     
             <div style="padding: 30px; text-align: center;">
@@ -326,10 +356,10 @@ app.post("/api/recuperar", async (req, res) => {
     });
   }
 });
+
 app.post("/api/restablecer-contrasena", async (req, res) => {
   const { token, nuevaContrasena } = req.body;
 
-  // Validación temprana
   if (!token || !nuevaContrasena) {
     return res.status(400).json({
       success: false,
@@ -350,11 +380,8 @@ app.post("/api/restablecer-contrasena", async (req, res) => {
       });
     }
 
-    // Encripta la nueva contraseña
-    const bcrypt = require("bcryptjs");
     const hashedPassword = await bcrypt.hash(nuevaContrasena, 10);
 
-    // IMPORTANTE: Verifica que los valores no estén undefined
     if (!hashedPassword || !token) {
       return res.status(400).json({
         success: false,
@@ -404,6 +431,7 @@ app.get("/restablecer/:token", async (req, res) => {
     res.status(500).json({ success: false, message: "Error al verificar el token" });
   }
 });
+
 app.get("/api/negocios/:idUsuario", async (req, res) => {
   const { idUsuario } = req.params;
 
@@ -413,14 +441,14 @@ app.get("/api/negocios/:idUsuario", async (req, res) => {
          n.ID_NEGOCIOS, 
          n.NombreNegocio, 
          n.Descripcion, 
-         c.Nombre AS Ciudad,       -- ← Trae el nombre de la ciudad
+         c.Nombre AS Ciudad,
          n.Direccion, 
          n.Horario, 
          n.NumTelefono AS Telefono, 
          n.RUT,
          n.Imagen
        FROM negocios n
-       JOIN ciudad c ON n.ID_CIUDAD = c.ID_CIUDAD  -- ← Relación entre negocio y ciudad
+       JOIN ciudad c ON n.ID_CIUDAD = c.ID_CIUDAD
        WHERE n.ID_USUARIOS = ?`,
       [idUsuario]
     );
@@ -435,6 +463,7 @@ app.get("/api/negocios/:idUsuario", async (req, res) => {
     res.status(500).json({ error: "Error al obtener los negocios" });
   }
 });
+
 app.get("/api/categorias", async (req, res) => {
   try {
     const [filas] = await database.execute("SELECT ID_CATEGORIAS, NombreCategoria FROM categorias");
@@ -444,6 +473,7 @@ app.get("/api/categorias", async (req, res) => {
     res.status(500).json({ message: "Error interno al obtener categorías" });
   }
 });
+
 app.post("/api/negociosnuevo", async (req, res) => {
   const {
     ID_USUARIOS,
@@ -510,6 +540,7 @@ app.get('/api/negocio/:id', async (req, res) => {
     res.status(500).json({ message: "Error interno al obtener el negocio" });
   }
 });
+
 app.get('/api/productos/negocio/:idNegocio', async (req, res) => {
   const idNegocio = req.params.idNegocio;
 
@@ -563,6 +594,7 @@ app.get('/api/resenas/negocio/:id', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener reseñas' });
   }
 });
+
 app.get("/api/negocios", async (req, res) => {
   try {
     const [rows] = await database.query(`
@@ -587,7 +619,212 @@ app.get("/api/negocios", async (req, res) => {
   }
 });
 
+// Ruta para procesar pagos
+app.post("/api/pagos", verifyToken, async (req, res) => {
+  const { productos, metodoPago } = req.body;
+  const idUsuario = req.user.idUsuario;
 
+  if (!productos || !Array.isArray(productos) || productos.length === 0 || !metodoPago) {
+    console.error("Datos de pago incompletos:", { productos, metodoPago });
+    return res.status(400).json({
+      success: false,
+      message: "Datos de pago incompletos o inválidos",
+    });
+  }
+
+  for (const producto of productos) {
+    if (
+      !producto.idProducto ||
+      !Number.isInteger(producto.cantidad) ||
+      producto.cantidad <= 0 ||
+      !producto.precioUnitario ||
+      producto.precioUnitario <= 0
+    ) {
+      console.error("Datos de producto inválidos:", producto);
+      return res.status(400).json({
+        success: false,
+        message: "Datos de producto inválidos: cantidad y precio deben ser positivos",
+      });
+    }
+  }
+
+  const connection = await database.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    console.log("Validando usuario con ID:", idUsuario);
+    const [userCheck] = await connection.query(
+      "SELECT ID_USUARIOS FROM Usuarios WHERE ID_USUARIOS = ?",
+      [idUsuario]
+    );
+    if (userCheck.length === 0) {
+      console.error("Usuario no encontrado para ID:", idUsuario);
+      throw new Error("El usuario no existe");
+    }
+
+    for (const producto of productos) {
+      const [productCheck] = await connection.query(
+        "SELECT ID_PRODUCTOS FROM Productos WHERE ID_PRODUCTOS = ?",
+        [producto.idProducto]
+      );
+      if (productCheck.length === 0) {
+        console.error("Producto no encontrado para ID:", producto.idProducto);
+        throw new Error(`El producto con ID ${producto.idProducto} no existe`);
+      }
+    }
+
+    const [pagoResult] = await connection.query("INSERT INTO Pago (MetodoPago) VALUES (?)", [metodoPago]);
+    const idPago = pagoResult.insertId;
+
+    const [facturaResult] = await connection.query(
+      "INSERT INTO Factura (ID_USUARIOS, ID_PAGO, FechaPago) VALUES (?, ?, NOW())",
+      [idUsuario, idPago]
+    );
+    const idFactura = facturaResult.insertId;
+
+    for (const producto of productos) {
+      await connection.query(
+        "INSERT INTO FacturaDetalle (ID_FACTURA, ID_PRODUCTOS, Monto, Cantidad) VALUES (?, ?, ?, ?)",
+        [idFactura, producto.idProducto, producto.precioUnitario, producto.cantidad]
+      );
+    }
+
+    await connection.commit();
+
+    console.log("Pago procesado correctamente. ID Factura:", idFactura);
+    res.json({
+      success: true,
+      idFactura,
+      message: "Pago procesado correctamente",
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Error en la transacción de pago:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error al procesar el pago",
+    });
+  } finally {
+    connection.release();
+  }
+});
+
+// Ruta para obtener una factura por ID
+app.get("/api/facturas/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [factura] = await database.query(
+      `SELECT f.ID_FACTURA, f.ID_USUARIOS, f.ID_PAGO, f.FechaPago,
+              fd.ID_FACTURA_DETALLE, fd.ID_PRODUCTOS, fd.Monto AS PrecioUnitario, fd.Cantidad,
+              p.NombreProducto,
+              SUM(fd.Monto * fd.Cantidad) AS Total
+       FROM Factura f
+       JOIN FacturaDetalle fd ON f.ID_FACTURA = fd.ID_FACTURA
+       JOIN Productos p ON fd.ID_PRODUCTOS = p.ID_PRODUCTOS
+       WHERE f.ID_FACTURA = ?
+       GROUP BY f.ID_FACTURA, fd.ID_FACTURA_DETALLE`,
+      [id]
+    );
+    if (!factura.length) {
+      return res.status(404).json({ success: false, message: "Factura no encontrada" });
+    }
+    res.json(factura);
+  } catch (error) {
+    console.error("Error al obtener la factura:", error);
+    res.status(500).json({ success: false, message: "Error al obtener la factura" });
+  }
+});
+
+// Ruta para descargar la factura en PDF
+app.get("/api/facturas/:id/descargar", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [factura] = await database.query(
+      `SELECT f.ID_FACTURA, f.FechaPago,
+              fd.ID_PRODUCTOS, fd.Monto AS PrecioUnitario, fd.Cantidad,
+              p.NombreProducto
+       FROM Factura f
+       JOIN FacturaDetalle fd ON f.ID_FACTURA = fd.ID_FACTURA
+       JOIN Productos p ON fd.ID_PRODUCTOS = p.ID_PRODUCTOS
+       WHERE f.ID_FACTURA = ?`,
+      [id]
+    );
+
+    if (!factura.length) {
+      return res.status(404).json({ success: false, message: "Factura no encontrada" });
+    }
+
+    const doc = new PDFDocument({ margin: 50 });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=factura-${id}.pdf`);
+    doc.pipe(res);
+
+    const logoPath = path.join(__dirname, "assets/Logo.png");
+    if (fs.existsSync(logoPath)) {
+      doc.image(logoPath, 50, 50, { width: 80 });
+    }
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(25)
+      .fillColor("#2c3e50")
+      .text(`Factura #${factura[0].ID_FACTURA}`, 200, 50, { align: "right" });
+    doc
+      .font("Helvetica")
+      .fontSize(12)
+      .fillColor("#2c3e50")
+      .text(`Fecha: ${new Date(factura[0].FechaPago).toLocaleString()}`, 200, 80, { align: "right" });
+
+    doc
+      .strokeColor("#d4af37")
+      .lineWidth(2)
+      .moveTo(50, 120)
+      .lineTo(550, 120)
+      .stroke();
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(16)
+      .fillColor("#d4af37")
+      .text("Detalles de la Compra", 50, 140);
+    let y = 170;
+    let total = 0;
+    factura.forEach((detalle, index) => {
+      const precioUnitario = Math.floor(detalle.PrecioUnitario);
+      const subtotal = Math.floor(precioUnitario * detalle.Cantidad);
+      total += subtotal;
+      doc
+        .font("Helvetica")
+        .fontSize(12)
+        .fillColor("#2c3e50")
+        .text(detalle.NombreProducto, 50, y)
+        .text(`Cantidad: ${detalle.Cantidad}`, 250, y)
+        .text(`$${precioUnitario} c/u`, 350, y)
+        .text(`$${new Intl.NumberFormat("es-CO").format(subtotal)}`, 450, y, { align: "right" });
+      y += 25;
+      if (index < factura.length - 1) {
+        doc
+          .strokeColor("#e0e0e0")
+          .lineWidth(1)
+          .moveTo(50, y - 5)
+          .lineTo(550, y - 5)
+          .stroke();
+      }
+    });
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(18)
+      .fillColor("#d4af37")
+      .text(`Total: $${new Intl.NumberFormat("es-CO").format(total)}`, 50, y + 20, { align: "right" });
+
+    doc.end();
+  } catch (error) {
+    console.error("Error al generar el PDF:", error);
+    res.status(500).json({ success: false, message: "Error al generar el PDF" });
+  }
+});
 
 // ✅ Iniciar el servidor
 app.listen(4000, () => {
