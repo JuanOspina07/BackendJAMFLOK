@@ -826,6 +826,160 @@ app.get("/api/facturas/:id/descargar", async (req, res) => {
   }
 });
 
+
+
+// ✅ Obtener datos del usuario
+app.get('/api/usuario/:id', async (req, res) => {
+  const { id } = req.params;
+  console.log("📥 Datos recibidos en PUT:", req.body);
+  try {
+    const [usuario] = await database.query(`
+      SELECT 
+        u.ID_USUARIOS,
+        u.NombreUsuario,
+        u.CorreoElectronico,
+        u.ID_ROL,
+        r.Nombre AS NombreRol
+      FROM Usuarios u
+      JOIN Roles r ON u.ID_ROL = r.ID_ROL
+      WHERE u.ID_USUARIOS = ?
+    `, [id]);
+
+    if (usuario.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const [perfil] = await database.query(`
+      SELECT 
+        p.PrimerNombre,
+        p.SegundoNombre,
+        p.PrimerApellido,
+        p.SegundoApellido,
+        p.NumTelefono,
+        p.FechaNacimiento,
+        p.Edad,
+        c.Nombre AS Ciudad,
+        d.Nombre AS Departamento,
+        pa.Nombre AS Pais,
+        doc.Numero AS NumeroDocumento,
+        td.Nombre AS TipoDocumento
+      FROM PerfilUsuario p
+      JOIN Ciudad c ON p.ID_CIUDAD = c.ID_CIUDAD
+      JOIN Departamento d ON c.ID_DEPARTAMENTO = d.ID_DEPARTAMENTO
+      JOIN Pais pa ON d.ID_PAIS = pa.ID_PAIS
+      JOIN DocumentoIdentidad doc ON p.ID_DOCUMENTO = doc.ID_DOCUMENTO
+      JOIN TipoDocumento td ON doc.ID_TIPO_DOCUMENTO = td.ID_TIPO_DOCUMENTO
+      WHERE p.ID_USUARIOS = ?
+    `, [id]);
+
+    const datosUsuario = {
+      ...usuario[0],
+      ...perfil[0]
+    };
+
+    res.json(datosUsuario);
+  } catch (error) {
+    console.error('❌ Error al obtener datos del usuario:', error);
+    res.status(500).json({ error: 'Error al obtener datos del usuario' });
+  }
+});
+
+
+// ✅ Actualizar datos del usuario (pégalo después del GET)
+app.put('/api/usuario/:id', async (req, res) => {
+  const { id } = req.params;
+  const datosActualizados = req.body;
+
+  console.log("📥 Datos recibidos para actualizar:", datosActualizados);
+
+  // Validación de fecha
+  if (datosActualizados.FechaNacimiento && !/^\d{4}-\d{2}-\d{2}$/.test(datosActualizados.FechaNacimiento)) {
+    return res.status(400).json({ error: 'Formato de fecha inválido. Use YYYY-MM-DD' });
+  }
+
+  const connection = await database.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // 1. Validar existencia de IDs relacionados
+    if (datosActualizados.ID_CIUDAD) {
+      const [ciudad] = await connection.query('SELECT 1 FROM Ciudad WHERE ID_CIUDAD = ?', [datosActualizados.ID_CIUDAD]);
+      if (ciudad.length === 0) {
+        throw new Error('La ciudad especificada no existe');
+      }
+    }
+
+    if (datosActualizados.ID_DOCUMENTO) {
+      const [documento] = await connection.query('SELECT 1 FROM DocumentoIdentidad WHERE ID_DOCUMENTO = ?', [datosActualizados.ID_DOCUMENTO]);
+      if (documento.length === 0) {
+        throw new Error('El documento especificado no existe');
+      }
+    }
+
+    // 2. Actualizar datos en Usuarios
+    if (datosActualizados.NombreUsuario || datosActualizados.CorreoElectronico) {
+      await connection.query(`
+        UPDATE Usuarios SET
+          NombreUsuario = COALESCE(?, NombreUsuario),
+          CorreoElectronico = COALESCE(?, CorreoElectronico)
+        WHERE ID_USUARIOS = ?
+      `, [
+        datosActualizados.NombreUsuario,
+        datosActualizados.CorreoElectronico,
+        id
+      ]);
+    }
+
+    // 3. Actualizar datos en PerfilUsuario
+    await connection.query(`
+      UPDATE PerfilUsuario SET
+        PrimerNombre = COALESCE(?, PrimerNombre),
+        SegundoNombre = COALESCE(?, SegundoNombre),
+        PrimerApellido = COALESCE(?, PrimerApellido),
+        SegundoApellido = COALESCE(?, SegundoApellido),
+        NumTelefono = COALESCE(?, NumTelefono),
+        FechaNacimiento = COALESCE(?, FechaNacimiento),
+        Edad = COALESCE(?, Edad),
+        ID_CIUDAD = COALESCE(?, ID_CIUDAD),
+        ID_DOCUMENTO = COALESCE(?, ID_DOCUMENTO)
+      WHERE ID_USUARIOS = ?
+    `, [
+      datosActualizados.PrimerNombre,
+      datosActualizados.SegundoNombre,
+      datosActualizados.PrimerApellido,
+      datosActualizados.SegundoApellido,
+      datosActualizados.NumTelefono,
+      datosActualizados.FechaNacimiento,
+      datosActualizados.Edad,
+      datosActualizados.ID_CIUDAD,
+      datosActualizados.ID_DOCUMENTO,
+      id
+    ]);
+
+    await connection.commit();
+    
+    res.json({ 
+      success: true, 
+      message: 'Datos actualizados correctamente',
+      data: datosActualizados
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('❌ Error al actualizar usuario:', error);
+    
+    res.status(500).json({ 
+      success: false,
+      error: 'Error al actualizar datos del usuario',
+      details: error.message
+    });
+  } finally {
+    connection.release();
+  }
+});
+
+
 // ✅ Iniciar el servidor
 app.listen(4000, () => {
   console.log("🚀 Servidor corriendo en http://localhost:4000");
