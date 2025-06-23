@@ -519,7 +519,7 @@ app.post("/api/negociosnuevo", async (req, res) => {
 });
 
 // Obtener datos de un negocio por ID
-app.get('/api/negocio/:id', async (req, res) => {
+app.get('/api/negocios/:id', async (req, res) => {
   const id = req.params.id;
 
   try {
@@ -976,6 +976,86 @@ app.put('/api/usuario/:id', async (req, res) => {
     });
   } finally {
     connection.release();
+  }
+});
+// POST - Agregar a favoritos
+app.post("/api/favoritos", async (req, res) => {
+  const { ID_NEGOCIO, ID_USUARIOS } = req.body;
+  try {
+    await database.query("INSERT INTO favoritos (ID_NEGOCIO, ID_USUARIOS) VALUES (?, ?)", [ID_NEGOCIO, ID_USUARIOS]);
+    res.sendStatus(201);
+  } catch (error) {
+    console.error("Error al insertar favorito:", error);
+    res.sendStatus(500);
+  }
+});
+
+// DELETE - Eliminar de favoritos
+app.delete("/api/favoritos", async (req, res) => {
+  const { ID_NEGOCIO, ID_USUARIOS } = req.body;
+  try {
+    await database.query("DELETE FROM favoritos WHERE ID_NEGOCIO = ? AND ID_USUARIOS = ?", [ID_NEGOCIO, ID_USUARIOS]);
+    res.sendStatus(204);
+  } catch (error) {
+    console.error("Error al eliminar favorito:", error);
+    res.sendStatus(500);
+  }
+});
+
+// GET - Obtener favoritos por usuario
+app.get("/api/favoritos/:idUsuario", async (req, res) => {
+  const { idUsuario } = req.params;
+  try {
+    const [rows] = await database.query(
+      `SELECT n.ID_NEGOCIOS, n.NombreNegocio, n.Descripcion, n.Imagen, n.Direccion
+       FROM favoritos f
+       JOIN negocios n ON f.ID_NEGOCIO = n.ID_NEGOCIOS
+       WHERE f.ID_USUARIOS = ?`,
+      [idUsuario]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al obtener favoritos:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+
+
+app.get("/api/negocio/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [rows] = await database.query("SELECT * FROM negocios WHERE ID_NEGOCIOS = ?", [id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ mensaje: "Negocio no encontrado" });
+    }
+
+    res.json(rows[0]);
+  } catch (error) {
+    console.error("Error al obtener negocio:", error);
+    res.status(500).json({ mensaje: "Error del servidor" });
+  }
+});
+// POST /api/resenas
+app.post("/api/resenas", async (req, res) => {
+  const { ID_CALIFICACION, ID_NEGOCIO, Descripcion } = req.body;
+
+  if (!ID_CALIFICACION || !ID_NEGOCIO || !Descripcion) {
+    return res.status(400).json({ error: "Campos incompletos" });
+  }
+
+  try {
+    await database.query(
+      `INSERT INTO resenas (ID_CALIFICACION, ID_NEGOCIO, Descripcion)
+       VALUES (?, ?, ?)`,
+      [ID_CALIFICACION, ID_NEGOCIO, Descripcion]
+    );
+    res.status(201).json({ mensaje: "Reseña guardada correctamente" });
+  } catch (error) {
+    console.error("Error al guardar reseña:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
