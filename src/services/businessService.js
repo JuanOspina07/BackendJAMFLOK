@@ -2,29 +2,38 @@ const database = require("../utils/database");
 
 class BusinessService {
   async getBusinessesByUser(idUsuario) {
-    const [rows] = await database.query(
-      `SELECT 
-         n.ID_NEGOCIOS, 
-         n.NombreNegocio, 
-         n.Descripcion, 
-         c.Nombre AS Ciudad,
-         n.Direccion, 
-         n.Horario, 
-         n.NumTelefono AS Telefono, 
-         n.RUT,
-         n.Imagen
-       FROM negocios n
-       JOIN ciudad c ON n.ID_CIUDAD = c.ID_CIUDAD
-       WHERE n.ID_USUARIOS = ?`,
-      [idUsuario]
-    );
+  const [rows] = await database.query(
+    `SELECT 
+        n.ID_NEGOCIOS, 
+        n.NombreNegocio, 
+        n.Descripcion, 
+        c.Nombre AS Ciudad,
+        n.Direccion, 
+        n.Horario, 
+        n.NumTelefono AS Telefono, 
+        n.RUT,
+        n.Imagen,
+        n.Logo,
+        
+        -- Categoría
+        n.ID_CATEGORIA,
+        cat.NombreCategoria AS Categorias
 
-    if (rows.length === 0) {
-      throw new Error("No se encontraron negocios para este usuario");
-    }
+     FROM negocios n
+     JOIN ciudad c ON n.ID_CIUDAD = c.ID_CIUDAD
+     JOIN categorias cat ON n.ID_CATEGORIA = cat.ID_CATEGORIAS
 
-    return rows;
+     WHERE n.ID_USUARIOS = ?`,
+    [idUsuario]
+  );
+
+  if (rows.length === 0) {
+    throw new Error("No se encontraron negocios para este usuario");
   }
+
+  return rows;
+}
+
 
   async getAllBusinesses() {
     const [rows] = await database.query(`
@@ -39,7 +48,8 @@ class BusinessService {
         Direccion,
         NumTelefono,
         Horario,
-        Imagen
+        Imagen,
+        Logo
       FROM Negocios
     `);
     return rows;

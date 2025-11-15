@@ -19,7 +19,7 @@ class FavoriteService {
 
   async getFavoritesByUser(idUsuario) {
     const [rows] = await database.query(
-      `SELECT n.ID_NEGOCIOS, n.NombreNegocio, n.Descripcion, n.Imagen, n.Direccion
+      `SELECT n.ID_NEGOCIOS, n.NombreNegocio, n.Descripcion, n.Imagen, n.Direccion, n.Logo
        FROM favoritos f
        JOIN negocios n ON f.ID_NEGOCIO = n.ID_NEGOCIOS
        WHERE f.ID_USUARIOS = ?`,
