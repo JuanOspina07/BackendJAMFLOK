@@ -17,7 +17,14 @@ class BusinessService {
         
         -- Categoría
         n.ID_CATEGORIA,
-        cat.NombreCategoria AS Categorias
+        cat.NombreCategoria AS Categorias,
+
+        IFNULL((
+            SELECT AVG(cal.NumEstrellas)
+            FROM resenas r
+            JOIN calificacion cal ON r.ID_CALIFICACION = cal.ID_CALIFICACION
+            WHERE r.ID_NEGOCIO = n.ID_NEGOCIOS
+        ), 0) AS rating
 
      FROM negocios n
      JOIN ciudad c ON n.ID_CIUDAD = c.ID_CIUDAD
