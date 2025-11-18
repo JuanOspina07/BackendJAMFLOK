@@ -32,6 +32,15 @@ class LocationController {
       res.status(500).json({ error: "Error al obtener las ciudades" });
     }
   }
+  async getAllCities(req, res) {
+    try {
+      const cities = await locationService.getAllCities();
+      res.json(cities);
+    } catch (error) {
+      console.error("Error al obtener todas las ciudades:", error);
+      res.status(500).json({ error: "Error al obtener todas las ciudades" });
+    }
+  }
 
   async getDocumentTypes(req, res) {
     try {

@@ -8,5 +8,7 @@ router.get("/negocio/:id", businessController.getBusiness);
 router.get("/negocios/detalle/:id", businessController.getBusinessDetails);
 router.post("/negociosnuevo", businessController.createBusiness);
 router.get("/categorias", businessController.getCategories);
+router.patch("/negocio/estado/:id", businessController.updateBusinessStatus);
+
 
 module.exports = router;

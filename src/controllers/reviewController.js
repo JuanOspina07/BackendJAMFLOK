@@ -7,7 +7,7 @@ class ReviewController {
       const reseñas = await reviewService.getReviewsByBusiness(id);
       res.json(reseñas);
     } catch (error) {
-      console.error("❌ Error al obtener reseñas:", error);
+      console.error("Error al obtener reseñas:", error);
       res.status(500).json({ error: "Error al obtener reseñas" });
     }
   }

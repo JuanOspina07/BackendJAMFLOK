@@ -24,6 +24,22 @@ class ProductService {
 
     return { message: "Producto creado exitosamente", id: result.insertId };
   }
+  async updateProductStatus(idProducto, estado) {
+    if (estado !== 0 && estado !== 1) {
+      throw new Error("El estado debe ser 0 o 1");
+    }
+
+    const [result] = await database.query(
+      `UPDATE productos SET Estado = ? WHERE ID_PRODUCTOS = ?`,
+      [estado, idProducto]
+    );
+
+    if (result.affectedRows === 0) {
+      throw new Error("Producto no encontrado");
+    }
+
+    return { success: true, estado };
+  }
 }
 
 module.exports = new ProductService();

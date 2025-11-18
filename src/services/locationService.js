@@ -31,6 +31,12 @@ class LocationService {
     const [rows] = await database.query("SELECT ID_ROL, Nombre FROM Roles");
     return rows;
   }
+  async getAllCities() {
+  const [rows] = await database.query(
+    "SELECT ID_CIUDAD, Nombre FROM Ciudad"
+  );
+  return rows;
+}
 }
 
 module.exports = new LocationService();

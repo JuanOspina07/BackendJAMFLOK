@@ -7,7 +7,7 @@ class BusinessController {
       const negocios = await businessService.getBusinessesByUser(idUsuario);
       res.json(negocios);
     } catch (error) {
-      console.error("❌ Error al obtener los negocios:", error);
+      console.error("Error al obtener los negocios:", error);
       res.status(404).json({ error: error.message });
     }
   }
@@ -17,7 +17,7 @@ class BusinessController {
       const negocios = await businessService.getAllBusinesses();
       res.json(negocios);
     } catch (error) {
-      console.error("❌ Error al obtener negocios:", error);
+      console.error("Error al obtener negocios:", error);
       res.status(500).json({ error: "Error al obtener negocios" });
     }
   }
@@ -39,20 +39,21 @@ class BusinessController {
       const negocio = await businessService.getBusinessDetails(id);
       res.json(negocio);
     } catch (error) {
-      console.error("❌ Error al obtener negocio por ID:", error);
+      console.error("Error al obtener negocio por ID:", error);
       res.status(404).json({ message: error.message });
     }
   }
 
   async createBusiness(req, res) {
-    try {
-      const result = await businessService.createBusiness(req.body);
-      res.json(result);
-    } catch (error) {
-      console.error("❌ Error al guardar negocio:", error);
-      res.status(400).json({ success: false, message: error.message });
-    }
+  try {
+    const result = await businessService.createBusiness(req.body);
+    res.json(result);
+  } catch (error) {
+    console.error("Error al guardar negocio:", error);
+    res.status(400).json({ success: false, message: error.message });
   }
+}
+
 
   async getCategories(req, res) {
     try {
@@ -61,6 +62,23 @@ class BusinessController {
     } catch (error) {
       console.error("Error al obtener categorías:", error);
       res.status(500).json({ message: "Error interno al obtener categorías" });
+    }
+  }
+  async updateBusinessStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { estado } = req.body;
+
+      const result = await businessService.updateBusinessStatus(Number(id), estado);
+
+      res.json({
+        message: "Estado actualizado correctamente",
+        nuevoEstado: result.estado
+      });
+
+    } catch (error) {
+      console.error("Error al actualizar estado:", error);
+      res.status(400).json({ error: error.message });
     }
   }
 }

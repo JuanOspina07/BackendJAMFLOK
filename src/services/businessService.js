@@ -93,8 +93,30 @@ class BusinessService {
     return rows[0];
   }
 
-  async createBusiness(businessData) {
-    const {
+  async createBusiness(data) {
+  const {
+    ID_USUARIOS,
+    ID_CATEGORIA,
+    ID_CIUDAD,
+    NombreNegocio,
+    RUT,
+    Descripcion,
+    Direccion,
+    NumTelefono,
+    Horario,
+    Imagen,
+    Logo,
+  } = data;
+
+  if (!ID_USUARIOS || !ID_CATEGORIA || !ID_CIUDAD || !NombreNegocio) {
+    throw new Error("Faltan campos obligatorios");
+  }
+
+  const [result] = await database.execute(
+    `INSERT INTO Negocios 
+      (ID_USUARIOS, ID_CATEGORIA, ID_CIUDAD, NombreNegocio, RUT, Descripcion, Direccion, NumTelefono, Horario, Imagen, Logo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
       ID_USUARIOS,
       ID_CATEGORIA,
       ID_CIUDAD,
@@ -105,42 +127,36 @@ class BusinessService {
       NumTelefono,
       Horario,
       Imagen,
-    } = businessData;
+      Logo,
+    ]
+  );
 
-    if (!ID_USUARIOS || !ID_CATEGORIA || !ID_CIUDAD || !NombreNegocio) {
-      throw new Error("Faltan campos obligatorios");
-    }
+  return { success: true, message: "Negocio guardado exitosamente", id: result.insertId };
+}
 
-    const [result] = await database.execute(
-      `INSERT INTO Negocios 
-        (ID_USUARIOS, ID_CATEGORIA, ID_CIUDAD, NombreNegocio, RUT, Descripcion, Direccion, NumTelefono, Horario, Imagen)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        ID_USUARIOS,
-        ID_CATEGORIA,
-        ID_CIUDAD,
-        NombreNegocio,
-        RUT,
-        Descripcion,
-        Direccion,
-        NumTelefono,
-        Horario,
-        Imagen,
-      ]
-    );
 
-    return {
-      success: true,
-      message: "Negocio guardado exitosamente",
-      id: result.insertId,
-    };
-  }
 
   async getCategories() {
     const [filas] = await database.execute(
       "SELECT ID_CATEGORIAS, NombreCategoria FROM categorias"
     );
     return filas;
+  }
+  async updateBusinessStatus(idNegocio, estado) {
+    if (estado !== 0 && estado !== 1) {
+      throw new Error("El estado debe ser 0 o 1");
+    }
+
+    const [result] = await database.query(
+      `UPDATE negocios SET Estado = ? WHERE ID_NEGOCIOS = ?`,
+      [estado, idNegocio]
+    );
+
+    if (result.affectedRows === 0) {
+      throw new Error("Negocio no encontrado");
+    }
+
+    return { success: true, estado };
   }
 }
 

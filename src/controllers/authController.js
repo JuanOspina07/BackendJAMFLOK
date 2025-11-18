@@ -6,7 +6,7 @@ class AuthController {
       const result = await authService.register(req.body);
       res.json(result);
     } catch (error) {
-      console.error("❌ Error en el registro:", error);
+      console.error(" Error en el registro:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Error en el registro",
