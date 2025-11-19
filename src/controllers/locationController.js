@@ -55,7 +55,10 @@ class LocationController {
   async getRoles(req, res) {
     try {
       const roles = await locationService.getRoles();
-      res.json(roles);
+      const rolesFiltrados = roles.filter(
+        (rol) => rol.Nombre !== "Admin"
+      );
+      res.json(rolesFiltrados);
     } catch (error) {
       console.error("Error al obtener los Roles:", error);
       res.status(500).json({ error: "Error al obtener los Roles" });
